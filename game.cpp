@@ -82,6 +82,29 @@ void Bullet::Tick()
 	}
 }
 
+void Bullet::TickUpdate()
+{
+	if (!(flags & Bullet::ACTIVE)) return;
+	//vec2 prevpos = pos;
+	//pos += speed * 1.5f, prevpos -= pos - prevpos;
+	//game->canvas->AddLine(prevpos.x, prevpos.y, pos.x, pos.y, 0x555555);
+	if ((pos.x < 0) || (pos.x > 2047) || (pos.y < 0) || (pos.y > 1535)) flags = 0; // off-screen
+	unsigned int start = 0, end = MAXP1;
+	if (flags & P1) start = MAXP1, end = MAXP1 + MAXP2;
+	for (unsigned int i = start; i < end; i++) // check all opponents
+	{
+		Tank& t = game->tankPrev[i];
+		if (!((t.flags & Tank::ACTIVE) && (pos.x > (t.pos.x - 2)) && (pos.y > (t.pos.y - 2)) && (pos.x < (t.pos.x + 2)) && (pos.y < (t.pos.y + 2)))) continue;
+		game->tank[i].health = max(0.0f, game->tank[i].health - (Rand(0.3f) + 0.1f));
+		if (game->tank[i].health > 0) continue;
+		if (t.flags & Tank::P1) aliveP1--; else aliveP2--;	// update counters
+		game->tank[i].flags &= Tank::P1 | Tank::P2;			// kill tank
+		flags = 0;											// destroy bullet
+		break;
+	}
+}
+
+
 // Tank::Fire - spawns a bullet
 void Tank::Fire( unsigned int party, vec2& pos, vec2& dir )
 {
@@ -151,6 +174,69 @@ void Tank::Tick()
 		if (d.length() < 100 && speed.dot( d.normalized() ) > 0.99999f)
 		{
 			Fire( flags & (P1 | P2), pos, speed ); // shoot
+			reloading = 200; // and wait before next shot is ready
+			break;
+		}
+	}
+}
+
+void Tank::TickUpdate()
+{
+	if (!(flags & ACTIVE)) // dead tank
+	{
+		smoke.xpos = (int)pos.x, smoke.ypos = (int)pos.y;
+		return smoke.Tick();
+	}
+	vec2 force = (target - pos).normalized();
+	// evade mountain peaks
+	for (unsigned int i = 0; i < 16; i++)
+	{
+		vec2 d(pos.x - peakx[i], pos.y - peaky[i]);
+		float sd = (d.x * d.x + d.y * d.y) * 0.2f;
+		if (sd < 1500)
+		{
+			force += d * 0.03f * (peakh[i] / sd);
+			float r = sqrtf(sd);
+			for (int j = 0; j < 720; j++)
+			{
+				//float x = peakx[i] + r * sinf((float)j * PI / 360.0f);
+				//float y = peaky[i] + r * cosf((float)j * PI / 360.0f);
+				//game->canvas->AddPlot((int)x, (int)y, 0x000500);
+			}
+		}
+	}
+	// evade other tanks
+	for (unsigned int i = 0; i < (MAXP1 + MAXP2); i++)
+	{
+		if (&game->tank[i] == this) continue;
+		vec2 d = pos - game->tankPrev[i].pos;
+		if (d.length() < 8) force += d.normalized() * 2.0f;
+		else if (d.length() < 16) force += d.normalized() * 0.4f;
+	}
+	// evade user dragged line
+	if ((flags & P1) && (game->leftButton))
+	{
+		float x1 = (float)game->dragXStart, y1 = (float)game->dragYStart;
+		float x2 = (float)game->mousex, y2 = (float)game->mousey;
+		if (x1 != x2 || y1 != y2)
+		{
+			vec2 N = vec2(y2 - y1, x1 - x2).normalized();
+			float dist = N.dot(pos) - N.dot(vec2(x1, y1));
+			if (fabs(dist) < 10) if (dist > 0) force += N * 20; else force -= N * 20;
+		}
+	}
+	// update speed using accumulated force
+	speed += force, speed = speed.normalized(), pos += speed * maxspeed * 0.5f;
+	// shoot, if reloading completed
+	if (--reloading >= 0) return;
+	unsigned int start = 0, end = MAXP1;
+	if (flags & P1) start = MAXP1, end = MAXP1 + MAXP2;
+	for (unsigned int i = start; i < end; i++) if (game->tankPrev[i].flags & ACTIVE)
+	{
+		vec2 d = game->tankPrev[i].pos - pos;
+		if (d.length() < 100 && speed.dot(d.normalized()) > 0.99999f)
+		{
+			Fire(flags & (P1 | P2), pos, speed); // shoot
 			reloading = 200; // and wait before next shot is ready
 			break;
 		}
@@ -366,19 +452,6 @@ void GameThread::run(){
 //Data update & Render update
 void Game::Update()
 {
-	//Pre-setting
-	uint data_update_speed = 1;
-	//printf("thread is created.");
-	
-	//temp, 
-	backdrop->CopyTo(canvas, 0, 0);
-
-	//[ Data update] (Only for bottleneck data update
-	for (uint i = 0; i < data_update_speed; i++) {
-		//memcpy(tankPrev, tank, (MAXP1 + MAXP2) * sizeof(Tank));
-		//TankTickDataUpdate();
-		//BulletTickDataUpdate();
-	}
 	//[Old sequence]
 	//backdrop->CopyTo(canvas, 0, 0);
 	//for (int i = 0; i < DUSTPARTICLES; i++) particle[i].Tick();
@@ -388,6 +461,16 @@ void Game::Update()
 	//if (!lock) for (unsigned int i = 0; i < (MAXP1 + MAXP2); i++) tank[i].Tick();
 	//if (!lock) for (unsigned int i = 0; i < MAXBULLET; i++) bullet[i].Tick();
 
+	//Pre-setting
+	uint data_update_speed = 50;
+
+	//[ Data update] (Only for bottleneck data update
+	for (uint i = 0; i < data_update_speed; i++) {
+		memcpy(tankPrev, tank, (MAXP1 + MAXP2) * sizeof(Tank));
+		TankTickDataUpdate();
+		BulletTickDataUpdate();
+	}
+	backdrop->CopyTo(canvas, 0, 0);
 	ParticleDataUpdate();
 	////[Data Update for Draw]
 	DeadTankDraw();
@@ -406,16 +489,16 @@ void Game::Update()
 	
 	// scale to window size
 	canvas->CopyHalfSize( screen );
-	frame++;
+	frame +=50;
 }
 
 
 //Data Update
 void Game::TankTickDataUpdate() {
-	if (!lock) for (unsigned int i = 0; i < (MAXP1 + MAXP2); i++) tank[i].Tick();
+	if (!lock) for (unsigned int i = 0; i < (MAXP1 + MAXP2); i++) tank[i].TickUpdate();
 }
 void Game::BulletTickDataUpdate() {
-	if (!lock) for (unsigned int i = 0; i < MAXBULLET; i++) bullet[i].Tick();
+	if (!lock) for (unsigned int i = 0; i < MAXBULLET; i++) bullet[i].TickUpdate();
 }
 void Game::ParticleDataUpdate() {
 	for (int i = 0; i < DUSTPARTICLES; i++) particle[i].Tick();
@@ -429,8 +512,7 @@ void Game::DrawTankUpdateDraw() {
 	
 }
 void Game::BulletTickUpdateDraw() {
-
-
+	if (!lock) for (unsigned int i = 0; i < MAXBULLET; i++) bullet[i].Tick();
 }
 
 //Drawing function sets

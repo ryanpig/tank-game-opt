@@ -68,6 +68,7 @@ public:
 	Tank() : pos( vec2( 0, 0 ) ), speed( vec2( 0, 0 ) ), target( vec2( 0, 0 ) ), reloading( 0 ) {};
 	void Fire( unsigned int party, vec2& pos, vec2& dir );
 	void Tick();
+	void TickUpdate();
 	vec2 pos, speed, target;
 	float maxspeed, health;
 	int flags, reloading;
@@ -80,6 +81,7 @@ public:
 	enum { ACTIVE = 1, P1 = 2, P2 = 4 };
 	Bullet() : flags( 0 ) {};
 	void Tick();
+	void TickUpdate();
 	vec2 pos, speed;
 	int flags;
 };
