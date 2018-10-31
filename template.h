@@ -82,6 +82,7 @@ public:
 	void operator *= ( float a ) { x *= a; y *= a; }
 	float& operator [] ( const int idx ) { return cell[idx]; }
 	float length() { return sqrtf( x * x + y * y ); }
+	int length2() { return int(x * x + y * y); }
 	float sqrLentgh() { return x * x + y * y; }
 	vec2 normalized() { float r = 1.0f / length(); return vec2( x * r, y * r ); }
 	void normalize() { float r = 1.0f / length(); x *= r; y *= r; }

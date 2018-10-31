@@ -22,6 +22,7 @@ static int sinf_dic[720];
 static int cosf_dic[720];
 static int sqrtf_dic[1500];
 static vector<uint> GRID[GRIDCOUNTS];
+static vector<uint> GRID_B[GRIDCOUNTS_B];
 
 //#define THREADMODE
 //buffer
@@ -129,6 +130,14 @@ void Tank::Tick()
 {
 	//Generate GRID
 	game->GenerateGrid();
+	int gx = (pos.x / 2048.0f) * GNUMX;
+	int gy = (pos.y / 1536.0f) * GNUMY;
+	uint baseidx = gx + gy * GNUMX;
+	if (gx >= GNUMX || gx < 0 || gy >= GNUMY || gy < 0)
+		return;
+
+
+
 	if (!(flags & ACTIVE)) // dead tank
 	{
 		smoke.xpos = (int)pos.x, smoke.ypos = (int)pos.y;
@@ -157,19 +166,13 @@ void Tank::Tick()
 	}
 
 	// evade other tanks in the same cell
-	int gx = (pos.x / 2048.0f) * GNUMX;
-	int gy = (pos.y / 1536.0f) * GNUMY;
-	uint baseidx = gx + gy * GNUMX;
-	if (gx > GNUMX || gx < -(GNUMX) || gy > GNUMY || gy < -(GNUMY))
-		return;
-
 	for (auto &tankid : GRID[baseidx])
 	{
 		if (tankid > (MAXP1 + MAXP2)) printf("error");
 		if (&game->tank[tankid] == this) continue;
 		vec2 d = pos - game->tankPrev[tankid].pos;
-		if (d.length() < 8) force += d.normalized() * 2.0f;
-		else if (d.length() < 16) force += d.normalized() * 0.4f;
+		if (d.length2() < 64) force += d.normalized() * 2.0f;
+		else if (d.length2() < 256) force += d.normalized() * 0.4f;
 	}
 
 	// evade other tanks
@@ -194,20 +197,48 @@ void Tank::Tick()
 	}
 	// update speed using accumulated force
 	speed += force, speed = speed.normalized(), pos += speed * maxspeed * 0.5f;
+	
+	
+	
 	// shoot, if reloading completed
 	if (--reloading >= 0) return;
+	//Using Grid to check neighboring tanks. 
+	bool r = flags & P1;
+	int range = 4;
+	int minGX = max((gx - range), 0);
+	int maxGX = min((gx + range), GNUMX);
+	int minGY = max((gy - range), 0);
+	int maxGY = min((gy + range), GNUMY);
+	for (int x = minGX; x < maxGX; x++) for (int y = minGY; y < maxGY; y++)
+	{
+		uint index = x + y * GNUMX;
+		for (auto &tankid : GRID[index])
+		{
+			if (r && (tankid < MAXP1)) continue; // P1 should shoot P2
+			if (!r && (tankid > MAXP1)) continue; //P2 should shoot P1
+			vec2 d = game->tankPrev[tankid].pos - pos;
+			if (d.length2() < 10000 && speed.dot(d.normalized()) > 0.99999f)
+			{
+				Fire(flags & (P1 | P2), pos, speed); // shoot
+				reloading = 200; // and wait before next shot is ready
+				break;
+			}
+		}
+	}
+	/*
 	unsigned int start = 0, end = MAXP1;
 	if (flags & P1) start = MAXP1, end = MAXP1 + MAXP2;
 	for (unsigned int i = start; i < end; i++) if (game->tankPrev[i].flags & ACTIVE)
 	{
 		vec2 d = game->tankPrev[i].pos - pos;
-		if (d.length() < 100 && speed.dot( d.normalized() ) > 0.99999f)
+		if (d.length2() < 10000 && speed.dot( d.normalized() ) > 0.99999f)
 		{
 			Fire( flags & (P1 | P2), pos, speed ); // shoot
 			reloading = 200; // and wait before next shot is ready
 			break;
 		}
 	}
+	*/
 }
 
 void Tank::TickUpdate()
@@ -284,7 +315,7 @@ void Tank::TickUpdate()
 	for (unsigned int i = start; i < end; i++) if (game->tankPrev[i].flags & ACTIVE)
 	{
 		vec2 d = game->tankPrev[i].pos - pos;
-		if (d.length() < 100 && speed.dot(d.normalized()) > 0.99999f)
+		if (d.length2() < 10000 && speed.dot(d.normalized()) > 0.99999f)
 		{
 			Fire(flags & (P1 | P2), pos, speed); // shoot
 			reloading = 200; // and wait before next shot is ready
@@ -599,11 +630,19 @@ void Game::GenerateGrid()
 	// Create grid for tanks
 	for (unsigned int i = 0; i < (MAXP1 + MAXP2); i++)
 	{
-		if (tank[i].pos.x > 2048 || tank[i].pos.x < -2048 || tank[i].pos.y > 1536 || tank[i].pos.y < -1536)
+		int x = (int)tank[i].pos.x;
+		int y = (int)tank[i].pos.y;
+		if ( x > 2048 || x < 0 || y > 1536 || y < 0)
 			continue;
-		int gx =  (tank[i].pos.x / 2048.0f) * GNUMX;
-		int gy =  (tank[i].pos.y / 1536.0f) * GNUMY;
-		uint baseidx = gx + gy * GNUMX;
+		//int gx = tank[i].pos.x / 32.0f ; //(2048/32)
+		//int gy = tank[i].pos.y/ 32.0f;  //1536/32
+
+		int baseidx =(x >> 5) + ((y >> 5) << 6);
+		//int baseidx =gx + (gy <<6);
+
+		//uint baseidx = x >> 5 + (y << 1);
+		//uint baseidx = gx + gy * GNUMX;
+
 		//printf("baseidx %d gx:%d gy:%d ", baseidx, gx, gy);
 		if(GRID[baseidx].size() < TANKPERCELL)
 			GRID[baseidx].push_back(i);
