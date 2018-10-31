@@ -116,12 +116,12 @@ public:
 	void BulletTickDataUpdate();
 	void ParticleDataUpdate();
 
-	//Data Update for Render
+	//Data Update for Drawing
 	void TankTickUpdateDraw();
 	void DrawTankUpdateDraw();
 	void BulletTickUpdateDraw();
 
-	//Render()
+	//Drawing
 	void ParticleDraw();
 	void DeadTankDraw();
 	void TankDraw();

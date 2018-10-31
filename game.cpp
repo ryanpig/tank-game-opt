@@ -17,11 +17,19 @@ static int aliveP1 = MAXP1, aliveP2 = MAXP2, frame = 0;
 static Bullet bullet[MAXBULLET];
 static GameThread gt;
 
+//Lookup table
+static int sinf_dic[720];
+static int cosf_dic[720];
+static int sqrtf_dic[1500];
+
+
 #define THREADMODE
 //buffer
 
 //global objects 
 
+//grid approach 
+//static Grid
 
 
 // dust particle effect tick function
@@ -133,11 +141,14 @@ void Tank::Tick()
 		if (sd < 1500)
 		{
 			force += d * 0.03f * (peakh[i] / sd);
-			float r = sqrtf( sd );
+			//float r = sqrtf( sd );
+			float r = sqrtf_dic[(int)sd];
 			for (int j = 0; j < 720; j++)
 			{
-				float x = peakx[i] + r * sinf( (float)j * PI / 360.0f );
-				float y = peaky[i] + r * cosf( (float)j * PI / 360.0f );
+				//float x = peakx[i] + r * sinf( (float)j * PI / 360.0f );
+				//float y = peaky[i] + r * cosf( (float)j * PI / 360.0f );
+				float x = peakx[i] + r * sinf_dic[j];
+				float y = peaky[i] + r * cosf_dic[j];
 				game->canvas->AddPlot( (int)x, (int)y, 0x000500 );
 			}
 		}
@@ -196,7 +207,8 @@ void Tank::TickUpdate()
 		if (sd < 1500)
 		{
 			force += d * 0.03f * (peakh[i] / sd);
-			float r = sqrtf(sd);
+			//float r = sqrtf(sd);
+			float r = sqrtf_dic[(int)sd];
 			for (int j = 0; j < 720; j++)
 			{
 				//float x = peakx[i] + r * sinf((float)j * PI / 360.0f);
@@ -246,6 +258,19 @@ void Tank::TickUpdate()
 // Game::Init - Load data, setup playfield
 void Game::Init()
 {
+	//LUT for sinf,cosf
+	for (int j = 0; j < 720; j++)
+	{
+		sinf_dic[j] = sinf(j * PI / 360.0f);
+		cosf_dic[j] = cosf(j * PI / 360.0f);
+	}
+	//LUT for sqrtf
+	for (int i = 0; i < 1500; i++)
+	{
+		sqrtf_dic[i] = sqrtf(i);
+
+	}
+
 
 
 	// load assets
