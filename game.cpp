@@ -16,6 +16,10 @@ static float peakh[16] = { 400, 300, 320, 510, 400, 510, 400, 600, 240, 200, 160
 static int aliveP1 = MAXP1, aliveP2 = MAXP2, frame = 0;
 static Bullet bullet[MAXBULLET];
 static GameThread gt;
+
+#define THREADMODE
+//buffer
+
 //global objects 
 
 
@@ -198,8 +202,9 @@ void Game::Init()
 	}
 	game = this; // for global reference
 	leftButton = prevButton = false;
-	
+#ifdef THREADMODE
 	gt.start();
+#endif // THREADMODE
 
 }
 
@@ -298,6 +303,8 @@ void Game::Tick( float a_DT )
 	leftButton = (GetAsyncKeyState( VK_LBUTTON ) != 0);
 #endif
 	mousex = p.x * 2, mousey = p.y * 2;
+#ifdef THREADMODE
+#else
 	// draw backdrop
 	backdrop->CopyTo( canvas, 0, 0 );
 	// update dust particles
@@ -310,12 +317,17 @@ void Game::Tick( float a_DT )
 	if (!lock) for (unsigned int i = 0; i < (MAXP1 + MAXP2); i++) tank[i].Tick();
 	// update bullets
 	if (!lock) for (unsigned int i = 0; i < MAXBULLET; i++) bullet[i].Tick();
+	// scale to window size
+	canvas->CopyHalfSize( screen );
+#endif
 	// handle input
 #ifndef MEASURE
 	PlayerInput();
 #endif
-	// scale to window size
-	canvas->CopyHalfSize( screen );
+
+
+
+
 	// draw lens
 	for (int x = p.x - 80; x < p.x + 80; x++) for (int y = p.y - 80; y < p.y + 80; y++)
 	{
@@ -327,7 +339,8 @@ void Game::Tick( float a_DT )
 	// report on game state
 	MeasurementStuff();
 	char buffer[128];
-	sprintf( buffer, "FRAME: %04i", frame++ );
+	//sprintf(buffer, "FRAME: %04i", frame++);
+	sprintf( buffer, "FRAME: %04i", frame );
 	font.Print( screen, buffer, 350, 580 );
 	if ((aliveP1 > 0) && (aliveP2 > 0))
 	{
@@ -354,47 +367,69 @@ void GameThread::run(){
 void Game::Update()
 {
 	//Pre-setting
-	uint data_update_speed = 10;
-	printf("thread is created.");
-	// Data update (Only for bottleneck data update
-	for (uint i = 0; i < data_update_speed; i++) {
-		TankDataUpdate();
-		BulletDataUpdate();
-	}
+	uint data_update_speed = 1;
+	//printf("thread is created.");
 	
+	//temp, 
+	backdrop->CopyTo(canvas, 0, 0);
+
+	//[ Data update] (Only for bottleneck data update
+	for (uint i = 0; i < data_update_speed; i++) {
+		//memcpy(tankPrev, tank, (MAXP1 + MAXP2) * sizeof(Tank));
+		//TankTickDataUpdate();
+		//BulletTickDataUpdate();
+	}
+	//[Old sequence]
+	//backdrop->CopyTo(canvas, 0, 0);
+	//for (int i = 0; i < DUSTPARTICLES; i++) particle[i].Tick();
+	//DrawDeadTanks();
+	//DrawTanks();
+	//memcpy( tankPrev, tank, (MAXP1 + MAXP2) * sizeof( Tank ) );
+	//if (!lock) for (unsigned int i = 0; i < (MAXP1 + MAXP2); i++) tank[i].Tick();
+	//if (!lock) for (unsigned int i = 0; i < MAXBULLET; i++) bullet[i].Tick();
+
 	ParticleDataUpdate();
-
-	//Data Update for Draw
-	TankTickUpdateDraw();
-	DrawTankUpdateDraw();
-	void BulletTickUpdateDraw();
-
-	//Draw
-	ParticleDraw();
+	////[Data Update for Draw]
 	DeadTankDraw();
 	TankDraw();
+	memcpy(tankPrev, tank, (MAXP1 + MAXP2) * sizeof(Tank));
+	TankTickUpdateDraw();
+	//DrawTankUpdateDraw();
+	BulletTickUpdateDraw();
+	
+	//copy background only before drawing
+	//backdrop->CopyTo(canvas, 0, 0);
+	//[Draw]
+	//ParticleDraw();
+	//DeadTankDraw();
+	//TankDraw();
+	
+	// scale to window size
+	canvas->CopyHalfSize( screen );
+	frame++;
 }
 
 
 //Data Update
-void Game::TankDataUpdate() {
-
+void Game::TankTickDataUpdate() {
+	if (!lock) for (unsigned int i = 0; i < (MAXP1 + MAXP2); i++) tank[i].Tick();
 }
-void Game::BulletDataUpdate() {
-
+void Game::BulletTickDataUpdate() {
+	if (!lock) for (unsigned int i = 0; i < MAXBULLET; i++) bullet[i].Tick();
 }
 void Game::ParticleDataUpdate() {
-
+	for (int i = 0; i < DUSTPARTICLES; i++) particle[i].Tick();
 }
 
 //Data Update function sets (For drawing)
 void Game::TankTickUpdateDraw() {
-
+	if (!lock) for (unsigned int i = 0; i < (MAXP1 + MAXP2); i++) tank[i].Tick();
 }
 void Game::DrawTankUpdateDraw() {
-
+	
 }
 void Game::BulletTickUpdateDraw() {
+
 
 }
 
@@ -403,10 +438,10 @@ void Game::ParticleDraw() {
 
 }
 void Game::DeadTankDraw() {
-
+	DrawDeadTanks();
 }
 void Game::TankDraw() {
-
+	DrawTanks();
 }
 
 

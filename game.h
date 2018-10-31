@@ -110,8 +110,8 @@ public:
 	void print() { printf("test"); }
 	void Update();
 	//Data Update
-	void TankDataUpdate(); 
-	void BulletDataUpdate();
+	void TankTickDataUpdate(); 
+	void BulletTickDataUpdate();
 	void ParticleDataUpdate();
 
 	//Data Update for Render
