@@ -450,7 +450,7 @@ void Game::MeasurementStuff()
 		duration = stopwatch.elapsed();
 		lock = true;
 	}
-	else frame--;
+	//else frame--;
 	if (lock)
 	{
 		int ms = (int)duration % 1000, sec = ((int)duration / 1000) % 60, min = ((int)duration / 60000);
@@ -551,7 +551,8 @@ void Game::Update()
 	//memcpy( tankPrev, tank, (MAXP1 + MAXP2) * sizeof( Tank ) );
 	//if (!lock) for (unsigned int i = 0; i < (MAXP1 + MAXP2); i++) tank[i].Tick();
 	//if (!lock) for (unsigned int i = 0; i < MAXBULLET; i++) bullet[i].Tick();
-
+	if (frame >= 4000)
+		return;
 	//Pre-setting
 	uint data_update_speed = 8;
 
@@ -580,7 +581,8 @@ void Game::Update()
 	
 	// scale to window size
 	canvas->CopyHalfSize( screen );
-	frame += data_update_speed;
+
+		frame += data_update_speed;
 }
 
 
