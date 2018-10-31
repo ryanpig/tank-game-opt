@@ -128,8 +128,6 @@ void Tank::Fire( unsigned int party, vec2& pos, vec2& dir )
 // Tank::Tick - update single tank
 void Tank::Tick()
 {
-	//Generate GRID
-	game->GenerateGrid();
 	int gx = (pos.x / 2048.0f) * GNUMX;
 	int gy = (pos.y / 1536.0f) * GNUMY;
 	uint baseidx = gx + gy * GNUMX;
@@ -243,9 +241,7 @@ void Tank::Tick()
 
 void Tank::TickUpdate()
 {
-	//Generate GRID
-	game->GenerateGrid();
-
+	
 	if (!(flags & ACTIVE)) // dead tank
 	{
 		smoke.xpos = (int)pos.x, smoke.ypos = (int)pos.y;
@@ -492,6 +488,8 @@ void Game::Tick( float a_DT )
 	DrawTanks();
 	// update armies
 	memcpy( tankPrev, tank, (MAXP1 + MAXP2) * sizeof( Tank ) );
+	//Generate GRID
+	game->GenerateGrid();
 	if (!lock) for (unsigned int i = 0; i < (MAXP1 + MAXP2); i++) tank[i].Tick();
 	// update bullets
 	if (!lock) for (unsigned int i = 0; i < MAXBULLET; i++) bullet[i].Tick();
@@ -632,18 +630,10 @@ void Game::GenerateGrid()
 	{
 		int x = (int)tank[i].pos.x;
 		int y = (int)tank[i].pos.y;
-		if ( x > 2048 || x < 0 || y > 1536 || y < 0)
+		if ( x > 2047 || x < 0 || y > 1535 || y < 0)
 			continue;
-		//int gx = tank[i].pos.x / 32.0f ; //(2048/32)
-		//int gy = tank[i].pos.y/ 32.0f;  //1536/32
-
 		int baseidx =(x >> 5) + ((y >> 5) << 6);
-		//int baseidx =gx + (gy <<6);
 
-		//uint baseidx = x >> 5 + (y << 1);
-		//uint baseidx = gx + gy * GNUMX;
-
-		//printf("baseidx %d gx:%d gy:%d ", baseidx, gx, gy);
 		if(GRID[baseidx].size() < TANKPERCELL)
 			GRID[baseidx].push_back(i);
 	}
