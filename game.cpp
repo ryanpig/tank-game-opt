@@ -15,6 +15,10 @@ static float peakh[16] = { 400, 300, 320, 510, 400, 510, 400, 600, 240, 200, 160
 // player, bullet and smoke data
 static int aliveP1 = MAXP1, aliveP2 = MAXP2, frame = 0;
 static Bullet bullet[MAXBULLET];
+static GameThread gt;
+//global objects 
+
+
 
 // dust particle effect tick function
 void Particle::Tick()
@@ -152,6 +156,8 @@ void Tank::Tick()
 // Game::Init - Load data, setup playfield
 void Game::Init()
 {
+
+
 	// load assets
 	backdrop = new Surface( "assets/backdrop.png" );
 	heights = new Surface( "assets/heightmap.png" );
@@ -192,6 +198,9 @@ void Game::Init()
 	}
 	game = this; // for global reference
 	leftButton = prevButton = false;
+	
+	gt.start();
+
 }
 
 // Game::DrawDeadTanks - draw dead tanks
@@ -333,3 +342,71 @@ void Game::Tick( float a_DT )
 	sprintf( buffer, "nice, you win! blue left: %i", aliveP1 );
 	screen->Print( buffer, 200, 370, 0xffff00 );
 }
+void GameThread::run(){
+	printf("Thread is created.");
+	while (true)
+	{
+		game->Update();
+	}
+}
+
+//Data update & Render update
+void Game::Update()
+{
+	//Pre-setting
+	uint data_update_speed = 10;
+	printf("thread is created.");
+	// Data update (Only for bottleneck data update
+	for (uint i = 0; i < data_update_speed; i++) {
+		TankDataUpdate();
+		BulletDataUpdate();
+	}
+	
+	ParticleDataUpdate();
+
+	//Data Update for Draw
+	TankTickUpdateDraw();
+	DrawTankUpdateDraw();
+	void BulletTickUpdateDraw();
+
+	//Draw
+	ParticleDraw();
+	DeadTankDraw();
+	TankDraw();
+}
+
+
+//Data Update
+void Game::TankDataUpdate() {
+
+}
+void Game::BulletDataUpdate() {
+
+}
+void Game::ParticleDataUpdate() {
+
+}
+
+//Data Update function sets (For drawing)
+void Game::TankTickUpdateDraw() {
+
+}
+void Game::DrawTankUpdateDraw() {
+
+}
+void Game::BulletTickUpdateDraw() {
+
+}
+
+//Drawing function sets
+void Game::ParticleDraw() {
+
+}
+void Game::DeadTankDraw() {
+
+}
+void Game::TankDraw() {
+
+}
+
+

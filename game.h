@@ -3,7 +3,7 @@
 namespace Tmpl8 {
 
 // final measurement defines
-// #define MEASURE										// ENABLE THIS FOR FINAL PERFORMANCE MEASUREMENT
+#define MEASURE										// ENABLE THIS FOR FINAL PERFORMANCE MEASUREMENT
 #define REFPERF			(922+52000+3*60000)				// reference performance Jacco's Razer laptop (i7)
 // #define REFPERF		(680+31*1000+10*60*1000)		// uncomment and put your reference time here
 
@@ -39,6 +39,8 @@ namespace Tmpl8 {
 #undef DUSTPARTICLES
 #define DUSTPARTICLES	10000
 #endif
+
+
 
 class Particle
 {
@@ -85,6 +87,16 @@ public:
 class Surface;
 class Surface8;
 class Sprite;
+//class GameThread;
+class GameThread : public Thread {
+	//void run() override {
+	//	printf("thread is created.");
+	//}
+public:
+	void run();
+};
+
+
 class Game
 {
 public:
@@ -95,12 +107,31 @@ public:
 	void PlayerInput();
 	void MeasurementStuff();
 	void Tick( float a_DT );
+	void print() { printf("test"); }
+	void Update();
+	//Data Update
+	void TankDataUpdate(); 
+	void BulletDataUpdate();
+	void ParticleDataUpdate();
+
+	//Data Update for Render
+	void TankTickUpdateDraw();
+	void DrawTankUpdateDraw();
+	void BulletTickUpdateDraw();
+
+	//Render()
+	void ParticleDraw();
+	void DeadTankDraw();
+	void TankDraw();
+
+
 	Surface* screen, *canvas, *backdrop, *heights;
 	Sprite* p1Sprite, *p2Sprite, *pXSprite, *smoke;
 	int mousex, mousey, dragXStart, dragYStart, dragFrames;
 	bool leftButton, prevButton;
 	Tank* tank, *tankPrev;
 	Particle* particle;
+
 };
 
 }; // namespace Templ8
