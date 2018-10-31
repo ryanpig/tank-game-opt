@@ -4,9 +4,9 @@ namespace Tmpl8 {
 
 // final measurement defines
 #define MEASURE										// ENABLE THIS FOR FINAL PERFORMANCE MEASUREMENT
-#define REFPERF			(922+52000+3*60000)				// reference performance Jacco's Razer laptop (i7)
+//#define REFPERF			(922+52000+3*60000)				// reference performance Jacco's Razer laptop (i7)
 // #define REFPERF		(680+31*1000+10*60*1000)		// uncomment and put your reference time here
-
+#define REFPERF                (103+7*1000+5*60*1000)   
 // modify these values for testing purposes (used when MEASURE is disabled)
 #define MAXP1			20			
 #define MAXP2			(4 * MAXP1)	// because the player is smarter than the AI
@@ -129,7 +129,7 @@ public:
 	//GRID
 	void GenerateGrid();
 
-	Surface* screen, *canvas, *backdrop, *heights;
+	Surface* screen, *canvas, *backdrop, *heights, *blend;
 	Sprite* p1Sprite, *p2Sprite, *pXSprite, *smoke;
 	int mousex, mousey, dragXStart, dragYStart, dragFrames;
 	bool leftButton, prevButton;

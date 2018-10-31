@@ -37,10 +37,13 @@ static vector<uint> GRID_B[GRIDCOUNTS_B];
 void Particle::Tick()
 {
 	pos += vel;
+
 	if (pos.x < 0) pos.x = 2046, pos.y = (float)((idx * 20261) % 1534); // adhoc rng
 	if (pos.y < 0) pos.y = 1534;
 	if (pos.x > 2046) pos.x = 0;
 	if (pos.y > 1534) pos.y = 0;
+	int x = pos.x;
+	int y = pos.y;
 	vec2 force = vec2( -1.0f + vel.x, -0.1f + vel.y ).normalized() * speed;
 	Pixel* heights = game->heights->GetBuffer();
 	int ix = min( 1022, (int)pos.x / 2 ), iy = min( 766, (int)pos.y / 2 );
@@ -48,7 +51,11 @@ void Particle::Tick()
 	float heightDeltaY = (float)(heights[ix + iy * 1024] & 255) - (heights[ix + (iy + 1) * 1024] & 255);
 	vec3 N = normalize( vec3( heightDeltaX, heightDeltaY, 38 ) ) * 4.0f;
 	vel.x = force.x + N.x, vel.y = force.y + N.y;
-	Pixel* a = game->canvas->GetBuffer() + (int)pos.x + (int)pos.y * 2048;
+	Pixel* a = game->canvas->GetBuffer() + x + y * 2048;
+	/*a[0] = *(game->blend->GetBuffer() + x + y * 2048);
+	a[1] = *(game->blend->GetBuffer() + (x+1) + y * 2048);
+	a[2048] = *(game->blend->GetBuffer() + x + (y + 1) * 2048);
+	a[2049] = *(game->blend->GetBuffer() + (x+1) + (y + 1) * 2048);*/
 	a[0] = AddBlend( a[0], 0x221100 ), a[2048] = AddBlend( a[2048], 0x221100 );
 	a[1] = AddBlend( a[1], 0x221100 ), a[2049] = AddBlend( a[2049], 0x221100 );
 }
@@ -128,13 +135,12 @@ void Tank::Fire( unsigned int party, vec2& pos, vec2& dir )
 // Tank::Tick - update single tank
 void Tank::Tick()
 {
-	int gx = (pos.x / 2048.0f) * GNUMX;
-	int gy = (pos.y / 1536.0f) * GNUMY;
-	uint baseidx = gx + gy * GNUMX;
+	int gx = int(pos.x) >> 5 ;
+	int gy = int(pos.y) >> 5 ;
+	//uint baseidx = gx + gy * GNUMX;
+	uint baseidx = gx + (gy << 6);
 	if (gx >= GNUMX || gx < 0 || gy >= GNUMY || gy < 0)
 		return;
-
-
 
 	if (!(flags & ACTIVE)) // dead tank
 	{
@@ -150,12 +156,9 @@ void Tank::Tick()
 		if (sd < 1500)
 		{
 			force += d * 0.03f * (peakh[i] / sd);
-			//float r = sqrtf( sd );
 			float r = sqrtf_dic[(int)sd];
 			for (int j = 0; j < 720; j++)
 			{
-				//float x = peakx[i] + r * sinf( (float)j * PI / 360.0f );
-				//float y = peaky[i] + r * cosf( (float)j * PI / 360.0f );
 				float x = peakx[i] + r * sinf_dic[j];
 				float y = peaky[i] + r * cosf_dic[j];
 				game->canvas->AddPlot( (int)x, (int)y, 0x000500 );
@@ -163,7 +166,7 @@ void Tank::Tick()
 		}
 	}
 
-	// evade other tanks in the same cell
+	// evade other tanks in the same cell (KEY)
 	for (auto &tankid : GRID[baseidx])
 	{
 		if (tankid > (MAXP1 + MAXP2)) printf("error");
@@ -173,14 +176,6 @@ void Tank::Tick()
 		else if (d.length2() < 256) force += d.normalized() * 0.4f;
 	}
 
-	// evade other tanks
-	/*for (unsigned int i = 0; i < (MAXP1 + MAXP2); i++)
-	{
-		if (&game->tank[i] == this) continue;
-		vec2 d = pos - game->tankPrev[i].pos;
-		if (d.length() < 8) force += d.normalized() * 2.0f;
-		else if (d.length() < 16) force += d.normalized() * 0.4f;
-	}*/
 	// evade user dragged line
 	if ((flags & P1) && (game->leftButton))
 	{
@@ -195,7 +190,6 @@ void Tank::Tick()
 	}
 	// update speed using accumulated force
 	speed += force, speed = speed.normalized(), pos += speed * maxspeed * 0.5f;
-	
 	
 	
 	// shoot, if reloading completed
@@ -223,25 +217,18 @@ void Tank::Tick()
 			}
 		}
 	}
-	/*
-	unsigned int start = 0, end = MAXP1;
-	if (flags & P1) start = MAXP1, end = MAXP1 + MAXP2;
-	for (unsigned int i = start; i < end; i++) if (game->tankPrev[i].flags & ACTIVE)
-	{
-		vec2 d = game->tankPrev[i].pos - pos;
-		if (d.length2() < 10000 && speed.dot( d.normalized() ) > 0.99999f)
-		{
-			Fire( flags & (P1 | P2), pos, speed ); // shoot
-			reloading = 200; // and wait before next shot is ready
-			break;
-		}
-	}
-	*/
+	
 }
 
 void Tank::TickUpdate()
 {
-	
+	int gx = int(pos.x) >> 5;
+	int gy = int(pos.y) >> 5;
+	//uint baseidx = gx + gy * GNUMX;
+	uint baseidx = gx + (gy << 6);
+	if (gx >= GNUMX || gx < 0 || gy >= GNUMY || gy < 0)
+		return;
+
 	if (!(flags & ACTIVE)) // dead tank
 	{
 		smoke.xpos = (int)pos.x, smoke.ypos = (int)pos.y;
@@ -256,40 +243,26 @@ void Tank::TickUpdate()
 		if (sd < 1500)
 		{
 			force += d * 0.03f * (peakh[i] / sd);
-			//float r = sqrtf(sd);
 			float r = sqrtf_dic[(int)sd];
 			for (int j = 0; j < 720; j++)
 			{
-				//float x = peakx[i] + r * sinf((float)j * PI / 360.0f);
-				//float y = peaky[i] + r * cosf((float)j * PI / 360.0f);
-				//game->canvas->AddPlot((int)x, (int)y, 0x000500);
+				float x = peakx[i] + r * sinf_dic[j];
+				float y = peaky[i] + r * cosf_dic[j];
+				game->canvas->AddPlot((int)x, (int)y, 0x000500);
 			}
 		}
 	}
-	// evade other tanks in the same cell
-	int gx = (pos.x / 2048.0f) * GNUMX;
-	int gy = (pos.y / 1536.0f) * GNUMY;
-	uint baseidx = gx + gy * GNUMX;
-	if (gx > GNUMX || gx < -(GNUMX) || gy > GNUMY || gy < -(GNUMY) )
-		return;
-	
+
+	// evade other tanks in the same cell (KEY)
 	for (auto &tankid : GRID[baseidx])
 	{
-		if(tankid > (MAXP1 + MAXP2)) printf("error");
+		if (tankid > (MAXP1 + MAXP2)) printf("error");
 		if (&game->tank[tankid] == this) continue;
 		vec2 d = pos - game->tankPrev[tankid].pos;
-		if (d.length() < 8) force += d.normalized() * 2.0f;
-		else if (d.length() < 16) force += d.normalized() * 0.4f;
+		if (d.length2() < 64) force += d.normalized() * 2.0f;
+		else if (d.length2() < 256) force += d.normalized() * 0.4f;
 	}
 
-	// evade other tanks
-	/*for (unsigned int i = 0; i < (MAXP1 + MAXP2); i++)
-	{
-		if (&game->tank[i] == this) continue;
-		vec2 d = pos - game->tankPrev[i].pos;
-		if (d.length() < 8) force += d.normalized() * 2.0f;
-		else if (d.length() < 16) force += d.normalized() * 0.4f;
-	}*/
 	// evade user dragged line
 	if ((flags & P1) && (game->leftButton))
 	{
@@ -304,18 +277,31 @@ void Tank::TickUpdate()
 	}
 	// update speed using accumulated force
 	speed += force, speed = speed.normalized(), pos += speed * maxspeed * 0.5f;
+
+
 	// shoot, if reloading completed
 	if (--reloading >= 0) return;
-	unsigned int start = 0, end = MAXP1;
-	if (flags & P1) start = MAXP1, end = MAXP1 + MAXP2;
-	for (unsigned int i = start; i < end; i++) if (game->tankPrev[i].flags & ACTIVE)
+	//Using Grid to check neighboring tanks. 
+	bool r = flags & P1;
+	int range = 4;
+	int minGX = max((gx - range), 0);
+	int maxGX = min((gx + range), GNUMX);
+	int minGY = max((gy - range), 0);
+	int maxGY = min((gy + range), GNUMY);
+	for (int x = minGX; x < maxGX; x++) for (int y = minGY; y < maxGY; y++)
 	{
-		vec2 d = game->tankPrev[i].pos - pos;
-		if (d.length2() < 10000 && speed.dot(d.normalized()) > 0.99999f)
+		uint index = x + y * GNUMX;
+		for (auto &tankid : GRID[index])
 		{
-			Fire(flags & (P1 | P2), pos, speed); // shoot
-			reloading = 200; // and wait before next shot is ready
-			break;
+			if (r && (tankid < MAXP1)) continue; // P1 should shoot P2
+			if (!r && (tankid > MAXP1)) continue; //P2 should shoot P1
+			vec2 d = game->tankPrev[tankid].pos - pos;
+			if (d.length2() < 10000 && speed.dot(d.normalized()) > 0.99999f)
+			{
+				Fire(flags & (P1 | P2), pos, speed); // shoot
+				reloading = 200; // and wait before next shot is ready
+				break;
+			}
 		}
 	}
 }
@@ -336,10 +322,12 @@ void Game::Init()
 
 	}
 
+
 	// load assets
 	backdrop = new Surface( "assets/backdrop.png" );
 	heights = new Surface( "assets/heightmap.png" );
 	canvas = new Surface( 2048, 1536 ); // game runs on a double-sized surface
+	blend = new Surface(2048, 1536);
 	tank = new Tank[MAXP1 + MAXP2];
 	tankPrev = new Tank[MAXP1 + MAXP2];
 	p1Sprite = new Sprite( new Surface( "assets/p1tank.tga" ), 1, Sprite::FLARE );
@@ -379,6 +367,16 @@ void Game::Init()
 #ifdef THREADMODE
 	gt.start();
 #endif // THREADMODE
+
+	// draw backdrop
+	backdrop->CopyTo(blend, 0, 0);
+	//canvas->CopyTo(blend, 0, 0);
+	for(int x=0;x<2046;x++) for(int y=0;y<1534;y++)
+	{
+		Pixel* a = game->blend->GetBuffer() + x + y * 2048;
+		a[0] = AddBlend(a[0], 0x221100), a[2048] = AddBlend(a[2048], 0x221100);
+		a[1] = AddBlend(a[1], 0x221100), a[2049] = AddBlend(a[2049], 0x221100);
+	}
 
 }
 
@@ -555,7 +553,7 @@ void Game::Update()
 	//if (!lock) for (unsigned int i = 0; i < MAXBULLET; i++) bullet[i].Tick();
 
 	//Pre-setting
-	uint data_update_speed = 10;
+	uint data_update_speed = 8;
 
 	//[ Data update] (Only for bottleneck data update
 	for (uint i = 0; i < data_update_speed; i++) {
@@ -588,6 +586,7 @@ void Game::Update()
 
 //Data Update
 void Game::TankTickDataUpdate() {
+	game->GenerateGrid();
 	if (!lock) for (unsigned int i = 0; i < (MAXP1 + MAXP2); i++) tank[i].TickUpdate();
 }
 void Game::BulletTickDataUpdate() {
@@ -599,6 +598,7 @@ void Game::ParticleDataUpdate() {
 
 //Data Update function sets (For drawing)
 void Game::TankTickUpdateDraw() {
+	game->GenerateGrid();
 	if (!lock) for (unsigned int i = 0; i < (MAXP1 + MAXP2); i++) tank[i].Tick();
 }
 void Game::DrawTankUpdateDraw() {
