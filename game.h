@@ -126,6 +126,8 @@ public:
 	void DeadTankDraw();
 	void TankDraw();
 
+	//GRID
+	void GenerateGrid();
 
 	Surface* screen, *canvas, *backdrop, *heights;
 	Sprite* p1Sprite, *p2Sprite, *pXSprite, *smoke;
@@ -135,5 +137,9 @@ public:
 	Particle* particle;
 
 };
-
+#define GNUMX  SCRWIDTH * 2 /32
+#define GNUMY SCRHEIGHT * 2 /32
+#define TANKPERCELL 100
+//#define GRIDCOUNTS	GNUMX * GNUMY * (TANKPERCELL + 1)
+#define GRIDCOUNTS	GNUMX * GNUMY
 }; // namespace Templ8

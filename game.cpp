@@ -1,5 +1,5 @@
 #include "precomp.h"
-
+#include <vector>
 // global data (source scope)
 static Game* game;
 static Font font( "assets/digital_small.png", "ABCDEFGHIJKLMNOPQRSTUVWXYZ:?!=-0123456789." );
@@ -21,9 +21,9 @@ static GameThread gt;
 static int sinf_dic[720];
 static int cosf_dic[720];
 static int sqrtf_dic[1500];
+static vector<uint> GRID[GRIDCOUNTS];
 
-
-#define THREADMODE
+//#define THREADMODE
 //buffer
 
 //global objects 
@@ -127,6 +127,8 @@ void Tank::Fire( unsigned int party, vec2& pos, vec2& dir )
 // Tank::Tick - update single tank
 void Tank::Tick()
 {
+	//Generate GRID
+	game->GenerateGrid();
 	if (!(flags & ACTIVE)) // dead tank
 	{
 		smoke.xpos = (int)pos.x, smoke.ypos = (int)pos.y;
@@ -153,14 +155,31 @@ void Tank::Tick()
 			}
 		}
 	}
+
+	// evade other tanks in the same cell
+	int gx = (pos.x / 2048.0f) * GNUMX;
+	int gy = (pos.y / 1536.0f) * GNUMY;
+	uint baseidx = gx + gy * GNUMX;
+	if (gx > GNUMX || gx < -(GNUMX) || gy > GNUMY || gy < -(GNUMY))
+		return;
+
+	for (auto &tankid : GRID[baseidx])
+	{
+		if (tankid > (MAXP1 + MAXP2)) printf("error");
+		if (&game->tank[tankid] == this) continue;
+		vec2 d = pos - game->tankPrev[tankid].pos;
+		if (d.length() < 8) force += d.normalized() * 2.0f;
+		else if (d.length() < 16) force += d.normalized() * 0.4f;
+	}
+
 	// evade other tanks
-	for (unsigned int i = 0; i < (MAXP1 + MAXP2); i++)
+	/*for (unsigned int i = 0; i < (MAXP1 + MAXP2); i++)
 	{
 		if (&game->tank[i] == this) continue;
 		vec2 d = pos - game->tankPrev[i].pos;
 		if (d.length() < 8) force += d.normalized() * 2.0f;
 		else if (d.length() < 16) force += d.normalized() * 0.4f;
-	}
+	}*/
 	// evade user dragged line
 	if ((flags & P1) && (game->leftButton))
 	{
@@ -193,6 +212,9 @@ void Tank::Tick()
 
 void Tank::TickUpdate()
 {
+	//Generate GRID
+	game->GenerateGrid();
+
 	if (!(flags & ACTIVE)) // dead tank
 	{
 		smoke.xpos = (int)pos.x, smoke.ypos = (int)pos.y;
@@ -217,14 +239,30 @@ void Tank::TickUpdate()
 			}
 		}
 	}
+	// evade other tanks in the same cell
+	int gx = (pos.x / 2048.0f) * GNUMX;
+	int gy = (pos.y / 1536.0f) * GNUMY;
+	uint baseidx = gx + gy * GNUMX;
+	if (gx > GNUMX || gx < -(GNUMX) || gy > GNUMY || gy < -(GNUMY) )
+		return;
+	
+	for (auto &tankid : GRID[baseidx])
+	{
+		if(tankid > (MAXP1 + MAXP2)) printf("error");
+		if (&game->tank[tankid] == this) continue;
+		vec2 d = pos - game->tankPrev[tankid].pos;
+		if (d.length() < 8) force += d.normalized() * 2.0f;
+		else if (d.length() < 16) force += d.normalized() * 0.4f;
+	}
+
 	// evade other tanks
-	for (unsigned int i = 0; i < (MAXP1 + MAXP2); i++)
+	/*for (unsigned int i = 0; i < (MAXP1 + MAXP2); i++)
 	{
 		if (&game->tank[i] == this) continue;
 		vec2 d = pos - game->tankPrev[i].pos;
 		if (d.length() < 8) force += d.normalized() * 2.0f;
 		else if (d.length() < 16) force += d.normalized() * 0.4f;
-	}
+	}*/
 	// evade user dragged line
 	if ((flags & P1) && (game->leftButton))
 	{
@@ -270,8 +308,6 @@ void Game::Init()
 		sqrtf_dic[i] = sqrtf(i);
 
 	}
-
-
 
 	// load assets
 	backdrop = new Surface( "assets/backdrop.png" );
@@ -450,8 +486,11 @@ void Game::Tick( float a_DT )
 	// report on game state
 	MeasurementStuff();
 	char buffer[128];
-	//sprintf(buffer, "FRAME: %04i", frame++);
-	sprintf( buffer, "FRAME: %04i", frame );
+#ifdef THREADMODE
+	sprintf(buffer, "FRAME: %04i", frame);
+#else
+	sprintf(buffer, "FRAME: %04i", frame++);
+#endif
 	font.Print( screen, buffer, 350, 580 );
 	if ((aliveP1 > 0) && (aliveP2 > 0))
 	{
@@ -487,7 +526,7 @@ void Game::Update()
 	//if (!lock) for (unsigned int i = 0; i < MAXBULLET; i++) bullet[i].Tick();
 
 	//Pre-setting
-	uint data_update_speed = 50;
+	uint data_update_speed = 10;
 
 	//[ Data update] (Only for bottleneck data update
 	for (uint i = 0; i < data_update_speed; i++) {
@@ -514,7 +553,7 @@ void Game::Update()
 	
 	// scale to window size
 	canvas->CopyHalfSize( screen );
-	frame +=50;
+	frame += data_update_speed;
 }
 
 
@@ -551,4 +590,27 @@ void Game::TankDraw() {
 	DrawTanks();
 }
 
+void Game::GenerateGrid()
+{
+	for (auto& v : GRID) {
+		v.clear();
+	}
+
+	// Create grid for tanks
+	for (unsigned int i = 0; i < (MAXP1 + MAXP2); i++)
+	{
+		if (tank[i].pos.x > 2048 || tank[i].pos.x < -2048 || tank[i].pos.y > 1536 || tank[i].pos.y < -1536)
+			continue;
+		int gx =  (tank[i].pos.x / 2048.0f) * GNUMX;
+		int gy =  (tank[i].pos.y / 1536.0f) * GNUMY;
+		uint baseidx = gx + gy * GNUMX;
+		//printf("baseidx %d gx:%d gy:%d ", baseidx, gx, gy);
+		if(GRID[baseidx].size() < TANKPERCELL)
+			GRID[baseidx].push_back(i);
+	}
+	for (auto& i : GRID[30])
+	{
+		//printf("grid[30]: %d", i);
+	}
+}
 
