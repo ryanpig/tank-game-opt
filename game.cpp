@@ -1,5 +1,7 @@
 #include "precomp.h"
 #include <vector>
+#include <thread>
+
 // global data (source scope)
 static Game* game;
 static Font font( "assets/digital_small.png", "ABCDEFGHIJKLMNOPQRSTUVWXYZ:?!=-0123456789." );
@@ -635,10 +637,12 @@ void Game::Update()
 	//if (frame >= 4000)
 //		return;
 	//Pre-setting
-	uint data_update_speed = 10;
+	uint data_update_speed = 12;
 	if (frame >= 4000)
 		data_update_speed = 0;
-	else 
+	if (frame >= 3996 && frame < 4000)
+		data_update_speed = 4;
+	else
 		;
 		//return;
 
@@ -688,7 +692,45 @@ void Game::ParticleDataUpdate() {
 //Data Update function sets (For drawing)
 void Game::TankTickUpdateDraw() {
 	game->GenerateGrid();
-	if (!lock) for (unsigned int i = 0; i < (MAXP1 + MAXP2); i++) tank[i].Tick();
+#define MT_TANK
+//#define CPUAFFINITY
+#ifdef MT_TANK
+	if (!lock) {
+		//uint num_threads = num_cpu;
+		unsigned int num_threads = 10; //10:12.2 ; 8:12.1; 4:12.1  
+		std::vector<std::thread> threads(num_threads);
+		unsigned int target = (MAXP1 + MAXP2);
+		// inverval setting based on different number of threads.
+		//unsigned int clip = 500;   //8
+		//unsigned int clip = 250;  //15
+		unsigned int clip = (int)(target / num_threads);  //13
+		//unsigned int clip = 125;    //29
+		// create threads.
+		uint thread_index = 0;
+		for (unsigned int k = 0; k < num_threads - 1; k++)
+		{
+			threads[k] = std::thread([&, k] {
+				for (unsigned int i = clip * k; i < clip*(k + 1); i++) tank[i].Tick();
+			});
+			// threads affinity
+		#ifdef CPUAFFINITY
+			DWORD_PTR index = 0x01 << (k % 8);
+			HANDLE h = threads[k].native_handle();
+			bool success = SetThreadAffinityMask(h, index);
+		#endif
+		}
+		threads[num_threads - 1] = std::thread([&] {
+			for (unsigned int i = clip * (num_threads - 1); i < target; i++) tank[i].Tick();
+		});
+		// join threads
+		for (auto& t : threads) {
+			t.join();
+		}
+	}
+#else
+	if (!lock) { for (unsigned int i = 0; i < (MAXP1 + MAXP2); i++) tank[i].Tick(); }
+#endif // MT_TANK
+
 }
 void Game::DrawTankUpdateDraw() {
 	
