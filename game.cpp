@@ -11,9 +11,9 @@ static float duration;
 //static float peakx[16] = { 496, 1074, 1390, 1734, 1774, 426, 752, 960, 1366, 1968, 728, 154, 170, 1044, 828, 1712 };
 //static float peaky[16] = { 398, 446, 166, 748, 1388, 1278, 938, 736, 1090, 290, 126, 82, 784, 570, 894, 704 };
 //static float peakh[16] = { 400, 300, 320, 510, 400, 510, 400, 600, 240, 200, 160, 160, 160, 320, 320, 320 };
-static float peakx[16] = { 496, 1074, 1390, 1734, 1774, 426, 752, 960, 1366, 1968, 728, 154, 170, 1044, 828, 1712 };
-static float peaky[16] = { 398, 446, 166, 748, 1388, 1278, 938, 736, 1090, 290, 126, 82, 784, 570, 894, 704 };
-static float peakh[16] = { 400, 300, 320, 510, 400, 510, 400, 600, 240, 200, 160, 160, 160, 320, 320, 320 };
+static int peakx[16] = { 496, 1074, 1390, 1734, 1774, 426, 752, 960, 1366, 1968, 728, 154, 170, 1044, 828, 1712 };
+static int peaky[16] = { 398, 446, 166, 748, 1388, 1278, 938, 736, 1090, 290, 126, 82, 784, 570, 894, 704 };
+static int peakh[16] = { 400, 300, 320, 510, 400, 510, 400, 600, 240, 200, 160, 160, 160, 320, 320, 320 };
 
 
 // player, bullet and smoke data
@@ -27,7 +27,7 @@ static float cosf_dic[720];
 static float sqrtf_dic[1500];
 static vector<uint> GRID[GRIDCOUNTS];
 static vector<uint> GRID_B[GRIDCOUNTS_B];
-#define AttackGridRange 1
+#define AttackGridRange 2
 #define THREADMODE
 
 //buffer
@@ -153,13 +153,13 @@ void Tank::Tick()
 		float sd = (d.x * d.x + d.y * d.y) * 0.2f;
 		if (sd < 1500)
 		{
-			force += d * 0.03f * (peakh[i] / sd);
+			force += d * 0.03f * ((float)peakh[i] / sd);
 			float r = sqrtf_dic[(int)sd];
 			for (int j = 0; j < 720; j++)
 			{
-				float x = peakx[i] + r * sinf_dic[j];
-				float y = peaky[i] + r * cosf_dic[j];
-				game->canvas->AddPlot( (int)x, (int)y, 0x000500 );
+				int x = peakx[i] + (int)(r * sinf_dic[j]);
+				int y = peaky[i] + (int)(r * cosf_dic[j]);
+				game->canvas->AddPlot( x, y, 0x000500 );
 			}
 		}
 	}
@@ -245,7 +245,7 @@ void Tank::Tick()
 		for (unsigned int i = start; i < end; i++) if (game->tankPrev[i].flags & ACTIVE)
 		{
 			vec2 d = game->tankPrev[i].pos - pos;
-			if (d.length() < 100 && speed.dot(d.normalized()) > 0.99999f)
+			if (d.length2() < 10000 && speed.dot(d.normalized()) > 0.99999f)
 			{
 				Fire(flags & (P1 | P2), pos, speed); // shoot
 				reloading = 200; // and wait before next shot is ready
@@ -280,13 +280,13 @@ void Tank::TickUpdate()
 		float sd = (d.x * d.x + d.y * d.y) * 0.2f;
 		if (sd < 1500)
 		{
-			force += d * 0.03f * (peakh[i] / sd);
+			force += d * 0.03f * ((float)(peakh[i] / sd));
 			float r = sqrtf_dic[(int)sd];
 			for (int j = 0; j < 720; j++)
 			{
-				float x = peakx[i] + r * sinf_dic[j];
-				float y = peaky[i] + r * cosf_dic[j];
-				game->canvas->AddPlot((int)x, (int)y, 0x000500);
+				int x = peakx[i] + (int)(r * sinf_dic[j]);
+				int y = peaky[i] + (int)(r * cosf_dic[j]);
+				game->canvas->AddPlot(x, y, 0x000500);
 			}
 		}
 	}
@@ -598,11 +598,11 @@ void Game::Update()
 	//if (frame >= 4000)
 //		return;
 	//Pre-setting
-	uint data_update_speed = 8;
+	uint data_update_speed = 10;
 	if (frame >= 4000)
 		data_update_speed = 0;
 	else 
-		data_update_speed = 8;
+		;
 		//return;
 
 
@@ -630,7 +630,7 @@ void Game::Update()
 	//TankDraw();
 	
 	// scale to window size
-	canvas->CopyHalfSize( screen );
+	canvas->CopyHalfSize(screen);
 
 		frame += data_update_speed;
 }
@@ -678,8 +678,8 @@ void Game::GenerateGrid()
 	}
 
 	// Create grid for tanks
-	int totalcounts = 0;
-	int out = 0;
+	//int totalcounts = 0;
+	//int out = 0;
 	for (unsigned int i = 0; i < (MAXP1 + MAXP2); i++)
 	{
 		int x = (int)tank[i].pos.x;
@@ -695,13 +695,13 @@ void Game::GenerateGrid()
 		if(GRID[baseidx].size() < TANKPERCELL)
 		{ 
 			GRID[baseidx].push_back(i);
-			totalcounts++;
+			//totalcounts++;
 		}
 	}
 	//printf("total %d", out);
-	for (auto& i : GRID[30])
-	{
+	//for (auto& i : GRID[30])
+	//{
 		//printf("grid[30]: %d", i);
-	}
+	//}
 }
 
