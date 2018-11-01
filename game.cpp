@@ -18,13 +18,13 @@ static Bullet bullet[MAXBULLET];
 static GameThread gt;
 
 //Lookup table
-static int sinf_dic[720];
-static int cosf_dic[720];
-static int sqrtf_dic[1500];
+static float sinf_dic[720];
+static float cosf_dic[720];
+static float sqrtf_dic[1500];
 static vector<uint> GRID[GRIDCOUNTS];
 static vector<uint> GRID_B[GRIDCOUNTS_B];
 
-//#define THREADMODE
+#define THREADMODE
 //buffer
 
 //global objects 
@@ -135,13 +135,6 @@ void Tank::Fire( unsigned int party, vec2& pos, vec2& dir )
 // Tank::Tick - update single tank
 void Tank::Tick()
 {
-	int gx = int(pos.x) >> 5 ;
-	int gy = int(pos.y) >> 5 ;
-	//uint baseidx = gx + gy * GNUMX;
-	uint baseidx = gx + (gy << 6);
-	if (gx >= GNUMX || gx < 0 || gy >= GNUMY || gy < 0)
-		return;
-
 	if (!(flags & ACTIVE)) // dead tank
 	{
 		smoke.xpos = (int)pos.x, smoke.ypos = (int)pos.y;
@@ -165,17 +158,33 @@ void Tank::Tick()
 			}
 		}
 	}
-
-	// evade other tanks in the same cell (KEY)
-	for (auto &tankid : GRID[baseidx])
+	int gx = int(pos.x) >> 5;
+	int gy = int(pos.y) >> 5;
+	//uint baseidx = gx + gy * GNUMX;
+	uint baseidx = gx + (gy << 6);
+	if (gx >= GNUMX || gx < 0 || gy >= GNUMY || gy < 0)
 	{
-		if (tankid > (MAXP1 + MAXP2)) printf("error");
-		if (&game->tank[tankid] == this) continue;
-		vec2 d = pos - game->tankPrev[tankid].pos;
-		if (d.length2() < 64) force += d.normalized() * 2.0f;
-		else if (d.length2() < 256) force += d.normalized() * 0.4f;
+		//using original algorithm if the position is out-bound
+		for (unsigned int i = 0; i < (MAXP1 + MAXP2); i++)
+		{
+			if (&game->tank[i] == this) continue;
+			vec2 d = pos - game->tankPrev[i].pos;
+			if (d.length() < 8) force += d.normalized() * 2.0f;
+			else if (d.length() < 16) force += d.normalized() * 0.4f;
+		}
 	}
-
+	else
+	{
+		// evade other tanks in the same cell (KEY)
+		for (auto &tankid : GRID[baseidx])
+		{
+			if (tankid > (MAXP1 + MAXP2)) printf("error");
+			if (&game->tank[tankid] == this) continue;
+			vec2 d = pos - game->tankPrev[tankid].pos;
+			if (d.length2() < 64) force += d.normalized() * 2.0f;
+			else if (d.length2() < 256) force += d.normalized() * 0.4f;
+		}
+	}
 	// evade user dragged line
 	if ((flags & P1) && (game->leftButton))
 	{
@@ -195,28 +204,46 @@ void Tank::Tick()
 	// shoot, if reloading completed
 	if (--reloading >= 0) return;
 	//Using Grid to check neighboring tanks. 
-	bool r = flags & P1;
-	int range = 4;
-	int minGX = max((gx - range), 0);
-	int maxGX = min((gx + range), GNUMX);
-	int minGY = max((gy - range), 0);
-	int maxGY = min((gy + range), GNUMY);
-	for (int x = minGX; x < maxGX; x++) for (int y = minGY; y < maxGY; y++)
-	{
-		uint index = x + y * GNUMX;
-		for (auto &tankid : GRID[index])
+	//#define USEGRID
+	#ifdef USEGRID
+		bool r = flags & P1;
+		int range = 4;
+		int minGX = max((gx - range), 0);
+		int maxGX = min((gx + range), GNUMX);
+		int minGY = max((gy - range), 0);
+		int maxGY = min((gy + range), GNUMY);
+		for (int x = minGX; x < maxGX; x++) for (int y = minGY; y < maxGY; y++)
 		{
-			if (r && (tankid < MAXP1)) continue; // P1 should shoot P2
-			if (!r && (tankid > MAXP1)) continue; //P2 should shoot P1
-			vec2 d = game->tankPrev[tankid].pos - pos;
-			if (d.length2() < 10000 && speed.dot(d.normalized()) > 0.99999f)
+			uint index = x + y * GNUMX;
+			for (auto &tankid : GRID[index])
+			{
+				if (r && (tankid < MAXP1)) continue; // P1 should shoot P2
+				if (!r && (tankid > MAXP1)) continue; //P2 should shoot P1
+				vec2 d = game->tankPrev[tankid].pos - pos;
+				if (d.length2() < 10000 && speed.dot(d.normalized()) > 0.99999f)
+				{
+					Fire(flags & (P1 | P2), pos, speed); // shoot
+					reloading = 200; // and wait before next shot is ready
+					break;
+				}
+			}
+		}
+	#else
+		unsigned int start = 0, end = MAXP1;
+		if (flags & P1) start = MAXP1, end = MAXP1 + MAXP2;
+		for (unsigned int i = start; i < end; i++) if (game->tankPrev[i].flags & ACTIVE)
+		{
+			vec2 d = game->tankPrev[i].pos - pos;
+			if (d.length() < 100 && speed.dot(d.normalized()) > 0.99999f)
 			{
 				Fire(flags & (P1 | P2), pos, speed); // shoot
 				reloading = 200; // and wait before next shot is ready
 				break;
 			}
 		}
-	}
+	#endif // USEGRID
+
+
 	
 }
 
@@ -628,17 +655,27 @@ void Game::GenerateGrid()
 	}
 
 	// Create grid for tanks
+	int totalcounts = 0;
+	int out = 0;
 	for (unsigned int i = 0; i < (MAXP1 + MAXP2); i++)
 	{
 		int x = (int)tank[i].pos.x;
 		int y = (int)tank[i].pos.y;
-		if ( x > 2047 || x < 0 || y > 1535 || y < 0)
+		//if (x > 2047 || x < 0 || y > 1535 || y < 0)
+		//using double height grid to avoid out bound issue.
+		if ( x < 0 || y < 0)
+		{
 			continue;
+		}
 		int baseidx =(x >> 5) + ((y >> 5) << 6);
 
 		if(GRID[baseidx].size() < TANKPERCELL)
+		{ 
 			GRID[baseidx].push_back(i);
+			totalcounts++;
+		}
 	}
+	//printf("total %d", out);
 	for (auto& i : GRID[30])
 	{
 		//printf("grid[30]: %d", i);

@@ -138,7 +138,7 @@ public:
 
 };
 #define GNUMX  SCRWIDTH * 2 /32
-#define GNUMY SCRHEIGHT * 2 /32
+#define GNUMY SCRHEIGHT * 4 /32
 #define GNUMX_B  SCRWIDTH * 2 /128
 #define GNUMY_B SCRHEIGHT * 2 /128
 #define TANKPERCELL 100
