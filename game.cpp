@@ -8,9 +8,13 @@ static timer stopwatch;
 static float duration;
 
 // mountain peaks (push player away)
+//static float peakx[16] = { 496, 1074, 1390, 1734, 1774, 426, 752, 960, 1366, 1968, 728, 154, 170, 1044, 828, 1712 };
+//static float peaky[16] = { 398, 446, 166, 748, 1388, 1278, 938, 736, 1090, 290, 126, 82, 784, 570, 894, 704 };
+//static float peakh[16] = { 400, 300, 320, 510, 400, 510, 400, 600, 240, 200, 160, 160, 160, 320, 320, 320 };
 static float peakx[16] = { 496, 1074, 1390, 1734, 1774, 426, 752, 960, 1366, 1968, 728, 154, 170, 1044, 828, 1712 };
 static float peaky[16] = { 398, 446, 166, 748, 1388, 1278, 938, 736, 1090, 290, 126, 82, 784, 570, 894, 704 };
 static float peakh[16] = { 400, 300, 320, 510, 400, 510, 400, 600, 240, 200, 160, 160, 160, 320, 320, 320 };
+
 
 // player, bullet and smoke data
 static int aliveP1 = MAXP1, aliveP2 = MAXP2, frame = 0;
@@ -23,8 +27,9 @@ static float cosf_dic[720];
 static float sqrtf_dic[1500];
 static vector<uint> GRID[GRIDCOUNTS];
 static vector<uint> GRID_B[GRIDCOUNTS_B];
-
+#define AttackGridRange 1
 #define THREADMODE
+
 //buffer
 
 //global objects 
@@ -176,6 +181,12 @@ void Tank::Tick()
 	else
 	{
 		// evade other tanks in the same cell (KEY)
+		int range = AttackGridRange;
+		int minGX = max((gx - range), 0);
+		int maxGX = min((gx + range), GNUMX);
+		int minGY = max((gy - range), 0);
+		int maxGY = min((gy + range), GNUMY);
+		for (int x = minGX; x < maxGX; x++) for (int y = minGY; y < maxGY; y++)
 		for (auto &tankid : GRID[baseidx])
 		{
 			if (tankid > (MAXP1 + MAXP2)) printf("error");
@@ -207,7 +218,7 @@ void Tank::Tick()
 	//#define USEGRID
 	#ifdef USEGRID
 		bool r = flags & P1;
-		int range = 4;
+		int range = AttackShootGridRange;
 		int minGX = max((gx - range), 0);
 		int maxGX = min((gx + range), GNUMX);
 		int minGY = max((gy - range), 0);
@@ -281,6 +292,12 @@ void Tank::TickUpdate()
 	}
 
 	// evade other tanks in the same cell (KEY)
+	int range = AttackGridRange;
+	int minGX = max((gx - range), 0);
+	int maxGX = min((gx + range), GNUMX);
+	int minGY = max((gy - range), 0);
+	int maxGY = min((gy + range), GNUMY);
+	for (int x = minGX; x < maxGX; x++) for (int y = minGY; y < maxGY; y++)
 	for (auto &tankid : GRID[baseidx])
 	{
 		if (tankid > (MAXP1 + MAXP2)) printf("error");
@@ -310,11 +327,11 @@ void Tank::TickUpdate()
 	if (--reloading >= 0) return;
 	//Using Grid to check neighboring tanks. 
 	bool r = flags & P1;
-	int range = 4;
-	int minGX = max((gx - range), 0);
-	int maxGX = min((gx + range), GNUMX);
-	int minGY = max((gy - range), 0);
-	int maxGY = min((gy + range), GNUMY);
+	//int range = AttackShootGridRange;
+	//int minGX = max((gx - range), 0);
+	//int maxGX = min((gx + range), GNUMX);
+	//int minGY = max((gy - range), 0);
+	//int maxGY = min((gy + range), GNUMY);
 	for (int x = minGX; x < maxGX; x++) for (int y = minGY; y < maxGY; y++)
 	{
 		uint index = x + y * GNUMX;
@@ -578,10 +595,16 @@ void Game::Update()
 	//memcpy( tankPrev, tank, (MAXP1 + MAXP2) * sizeof( Tank ) );
 	//if (!lock) for (unsigned int i = 0; i < (MAXP1 + MAXP2); i++) tank[i].Tick();
 	//if (!lock) for (unsigned int i = 0; i < MAXBULLET; i++) bullet[i].Tick();
-	if (frame >= 4000)
-		return;
+	//if (frame >= 4000)
+//		return;
 	//Pre-setting
 	uint data_update_speed = 8;
+	if (frame >= 4000)
+		data_update_speed = 0;
+	else 
+		data_update_speed = 8;
+		//return;
+
 
 	//[ Data update] (Only for bottleneck data update
 	for (uint i = 0; i < data_update_speed; i++) {
