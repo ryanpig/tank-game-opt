@@ -29,6 +29,8 @@ static vector<uint> GRID[GRIDCOUNTS];
 static vector<uint> GRID_B[GRIDCOUNTS_B];
 #define AttackGridRange 2
 #define THREADMODE
+#define USEBULLETGRID
+
 
 //buffer
 
@@ -52,8 +54,8 @@ void Particle::Tick()
 	vec2 force = vec2( -1.0f + vel.x, -0.1f + vel.y ).normalized() * speed;
 	Pixel* heights = game->heights->GetBuffer();
 	int ix = min( 1022, (int)pos.x / 2 ), iy = min( 766, (int)pos.y / 2 );
-	float heightDeltaX = (float)(heights[ix + iy * 1024] & 255) - (heights[(ix + 1) + iy * 1024] & 255);
-	float heightDeltaY = (float)(heights[ix + iy * 1024] & 255) - (heights[ix + (iy + 1) * 1024] & 255);
+	float heightDeltaX = (float)(heights[ix + iy >>10] & 255) - (heights[(ix + 1) + iy >>10] & 255);
+	float heightDeltaY = (float)(heights[ix + iy >>10] & 255) - (heights[ix + (iy + 1) >>10] & 255);
 	vec3 N = normalize( vec3( heightDeltaX, heightDeltaY, 38 ) ) * 4.0f;
 	vel.x = force.x + N.x, vel.y = force.y + N.y;
 	Pixel* a = game->canvas->GetBuffer() + x + y * 2048;
@@ -110,21 +112,59 @@ void Bullet::TickUpdate()
 	//pos += speed * 1.5f, prevpos -= pos - prevpos;
 	//game->canvas->AddLine(prevpos.x, prevpos.y, pos.x, pos.y, 0x555555);
 	if ((pos.x < 0) || (pos.x > 2047) || (pos.y < 0) || (pos.y > 1535)) flags = 0; // off-screen
-	unsigned int start = 0, end = MAXP1;
-	if (flags & P1) start = MAXP1, end = MAXP1 + MAXP2;
-	for (unsigned int i = start; i < end; i++) // check all opponents
-	{
-		Tank& t = game->tankPrev[i];
-		if (!((t.flags & Tank::ACTIVE) && (pos.x > (t.pos.x - 2)) && (pos.y > (t.pos.y - 2)) && (pos.x < (t.pos.x + 2)) && (pos.y < (t.pos.y + 2)))) continue;
-		game->tank[i].health = max(0.0f, game->tank[i].health - (Rand(0.3f) + 0.1f));
-		if (game->tank[i].health > 0) continue;
-		if (t.flags & Tank::P1) aliveP1--; else aliveP2--;	// update counters
-		game->tank[i].flags &= Tank::P1 | Tank::P2;			// kill tank
-		flags = 0;											// destroy bullet
-		break;
-	}
-}
 
+
+
+	#ifdef USEBULLETGRID
+	{
+		int gx = int(pos.x) >> 5;
+		int gy = int(pos.y) >> 5;
+		uint baseidx = gx + (gy << 6);
+		//if (gx >= GNUMX || gx < 0 || gy >= GNUMY || gy < 0)
+		bool r = flags & P1;
+		int range = AttackGridRange;
+		int minGX = max((gx - range), 0);
+		int maxGX = min((gx + range), GNUMX);
+		int minGY = max((gy - range), 0);
+		int maxGY = min((gy + range), GNUMY);
+		for (int x = minGX; x < maxGX; x++) for (int y = minGY; y < maxGY; y++)
+		{
+			uint index = x + y * GNUMX;
+			for (auto &tankid : GRID[index])
+			{
+				if (r && (tankid < MAXP1)) continue; // P1 should shoot P2
+				if (!r && (tankid > MAXP1)) continue; //P2 should shoot P1
+
+				Tank& t = game->tankPrev[tankid];
+				if (!((t.flags & Tank::ACTIVE) && (pos.x > (t.pos.x - 2)) && (pos.y > (t.pos.y - 2)) && (pos.x < (t.pos.x + 2)) && (pos.y < (t.pos.y + 2)))) continue;
+				game->tank[tankid].health = max(0.0f, game->tank[tankid].health - (Rand(0.3f) + 0.1f));
+				if (game->tank[tankid].health > 0) continue;
+				if (t.flags & Tank::P1) aliveP1--; else aliveP2--;	// update counters
+				game->tank[tankid].flags &= Tank::P1 | Tank::P2;			// kill tank
+				flags = 0;											// destroy bullet
+				break;
+			}
+		}
+	}
+	#else
+	{
+		unsigned int start = 0, end = MAXP1;
+		if (flags & P1) start = MAXP1, end = MAXP1 + MAXP2;
+		for (unsigned int i = start; i < end; i++) // check all opponents
+		{
+			Tank& t = game->tankPrev[i];
+			if (!((t.flags & Tank::ACTIVE) && (pos.x > (t.pos.x - 2)) && (pos.y > (t.pos.y - 2)) && (pos.x < (t.pos.x + 2)) && (pos.y < (t.pos.y + 2)))) continue;
+			game->tank[i].health = max(0.0f, game->tank[i].health - (Rand(0.3f) + 0.1f));
+			if (game->tank[i].health > 0) continue;
+			if (t.flags & Tank::P1) aliveP1--; else aliveP2--;	// update counters
+			game->tank[i].flags &= Tank::P1 | Tank::P2;			// kill tank
+			flags = 0;											// destroy bullet
+			break;
+		}
+	}
+	#endif
+
+}
 
 // Tank::Fire - spawns a bullet
 void Tank::Fire( unsigned int party, vec2& pos, vec2& dir )
@@ -543,9 +583,6 @@ void Game::Tick( float a_DT )
 	PlayerInput();
 #endif
 
-
-
-
 	// draw lens
 	for (int x = p.x - 80; x < p.x + 80; x++) for (int y = p.y - 80; y < p.y + 80; y++)
 	{
@@ -669,6 +706,33 @@ void Game::DeadTankDraw() {
 }
 void Game::TankDraw() {
 	DrawTanks();
+}
+
+void Game::GenerateBulletGrid()
+{
+	for (auto& v : GRID_B) {
+		v.clear();
+	}
+
+	for (unsigned int i = 0; i < (MAXP1 + MAXP2); i++)
+	{
+		int x = (int)tank[i].pos.x;
+		int y = (int)tank[i].pos.y;
+		//if (x > 2047 || x < 0 || y > 1535 || y < 0)
+		//using double height grid to avoid out bound issue.
+		if (x < 0 || y < 0)
+		{
+			continue;
+		}
+		int baseidx = (x >> 5) + ((y >> 5) << 6);
+
+		if (GRID_B[baseidx].size() < TANKPERCELL)
+		{
+			GRID_B[baseidx].push_back(i);
+			//totalcounts++;
+		}
+	}
+
 }
 
 void Game::GenerateGrid()

@@ -128,6 +128,7 @@ public:
 
 	//GRID
 	void GenerateGrid();
+	void GenerateBulletGrid();
 
 	Surface* screen, *canvas, *backdrop, *heights, *blend;
 	Sprite* p1Sprite, *p2Sprite, *pXSprite, *smoke;
