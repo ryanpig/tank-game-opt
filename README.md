@@ -11,13 +11,13 @@ The final speed-up compared to original performance is 12.1 without breaking any
 # Implenmented approaches
 
 ### Grid 
-- Instread of going over each pixel, we only need to traverse each grid to calculate tanks in the grid, which improves the speed from 3.3 to 8;
+- Instread of going over each pixel, we only need to traverse each grid to calculate tanks in the grid, which improves the speed from 3.3x to 8x;
 
 ### The separation of rendering and updating 
-- The tie of the rendering coming w/ updating calculation is broken by control flow, which leads to another performance boost from 8 to 11.4. 
+- The tie of the rendering coming w/ updating calculation is broken by using manual control flow, which leads to another performance boost from 8x to 11.4x. 
 
 ### Multi-threading
-- It only slightly helps performance from 11.4 to 12.1 since the overhead of thread creation compensates the benefit of concurrency.
+- It only slightly helps performance from 11.4x to 12.1x since the overhead of thread creation compensates the benefit of concurrency.
 
 ### others 
 - Use lookup tables to replace intense calculation function e.g. sqrt 
